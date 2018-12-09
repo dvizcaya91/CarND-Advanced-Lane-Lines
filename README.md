@@ -1,39 +1,111 @@
-## Advanced Lane Finding
-[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
+## README
 
-
-In this project, your goal is to write a software pipeline to identify the lane boundaries in a video, but the main output or product we want you to create is a detailed writeup of the project.  Check out the [writeup template](https://github.com/udacity/CarND-Advanced-Lane-Lines/blob/master/writeup_template.md) for this project and use it as a starting point for creating your own writeup.  
-
-Creating a great writeup:
----
-A great writeup should include the rubric points as well as your description of how you addressed each point.  You should include a detailed description of the code used in each step (with line-number references and code snippets where necessary), and links to other supporting documents or external references.  You should include images in your writeup to demonstrate how your code works with examples.  
-
-All that said, please be concise!  We're not looking for you to write a book here, just a brief description of how you passed each rubric point, and references to the relevant code :). 
-
-You're not required to use markdown for your writeup.  If you use another method please just submit a pdf of your writeup.
-
-The Project
 ---
 
-The goals / steps of this project are the following:
+**Lane lines detection project**
 
-* Compute the camera calibration matrix and distortion coefficients given a set of chessboard images.
-* Apply a distortion correction to raw images.
-* Use color transforms, gradients, etc., to create a thresholded binary image.
-* Apply a perspective transform to rectify binary image ("birds-eye view").
-* Detect lane pixels and fit to find the lane boundary.
-* Determine the curvature of the lane and vehicle position with respect to center.
-* Warp the detected lane boundaries back onto the original image.
-* Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
+[//]: # (Image References)
 
-The images for camera calibration are stored in the folder called `camera_cal`.  The images in `test_images` are for testing your pipeline on single frames.  If you want to extract more test images from the videos, you can simply use an image writing method like `cv2.imwrite()`, i.e., you can read the video in frame by frame as usual, and for frames you want to save for later you can write to an image file.  
+[image1]: ./report_images/image1.png "Undistorted"
+[image2]: ./report_images/image2.png "Road Transformed"
+[image3]: ./report_images/image3.png "Binary Example"
+[image4]: ./report_images/image4.png "Warp Example"
+[image5]: ./report_images/image5.png "Fit Visual"
+[image6]: ./report_images/image6.png "Output"
+[video1]: ./output_videos/project_video.mp4 "Video"
 
-To help the reviewer examine your work, please save examples of the output from each stage of your pipeline in the folder called `output_images`, and include a description in your writeup for the project of what each image shows.    The video called `project_video.mp4` is the video your pipeline should work well on.  
 
-The `challenge_video.mp4` video is an extra (and optional) challenge for you if you want to test your pipeline under somewhat trickier conditions.  The `harder_challenge.mp4` video is another optional challenge and is brutal!
+---
 
-If you're feeling ambitious (again, totally optional though), don't stop there!  We encourage you to go out and take video of your own, calibrate your camera and show us how you would implement this project from scratch!
+### README
 
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+This project objective was to create a pipeline capable of automatically detecting the lane lines of the road, as well as its curvature. 
 
+### 1. Camera calibration 
+
+The code for this section can be observed in the first cells of the notebook project_2.ipynb.
+First, all calibration images were loaded. Each image was converted to grayscale and then the
+corners of the chessboard were calculated using the findChessboardCorners cv2 functions. The
+points of the corners of all images were saved in the imgpoints variable. It is worth mentioning that
+the function did not found the corners for 3 images. Nevertheless, this should not affect the
+performance, given the number of calibration images.
+After that, the variables created were used to calibrate the camera using the cv2 function
+calibrateCamera.
+A corners_unwarp function was created to evaluate the performance of the distortion over
+the calibration images.
+
+### 2. Pipeline 
+
+The pipeline that process all images and video frames was developed under the function
+image_pipeline. Inside this pipeline, other functions were called as will be explained below.
+
+* *Distortion corrected image*
+The first step of the pipeline is to correct the distortion of the image, using the
+parameters found when calibrating the camera. Following can be found some examples of
+images before and after the distortion correction
+
+![alt text][image1]
+![alt text][image2]
+
+
+* *Color and gradients thresholds*
+The operations for color and gradients thresholds can be found on the function called
+transform_image. For the color transformation, the image was converted to HLS, the s channel
+was selected, and the points were keep if the values were over 170, up to 255. The Sobel in x
+was also evaluated. The thresholds in this case were 20 and 100.
+
+![alt text][image3]
+
+* *Perspective transformation*
+The perspective transformation of an image was performed in the image_pipeline
+function. The source points were defined as `[[(1280/2)*.9, (720/2)*1.3], [(1280/2)*1.1,
+(720/2)*1.3], [1100,720], [200,720]]`. In the following example images, the red dots represent
+the source and the blue points the destination.
+
+![alt text][image4]
+
+* *Lane-line pixels and polynomials*
+In order to identify the lane-lines polynomials, the first thing was to calculate the
+histogram of the half bottom section of the image. This was done on the image_pipeline
+function. After that, the polynomials were calculated on the get_polys function.
+The get_polys function receives as input the image, the histogram and the polynomials
+of a previous frame (optional). An option for debugging the images is also available. The process
+is different depending on whether there are polynomials of previous frames, or not.
+In the case there are no previous polynomials, the first thing was to find the points that
+were located in a window defined by the half bottom of the image, and the greater point on the
+histogram +/- the margin (for both left and right). After that, a first polynomial was fitted. Then
+the process was repeated, increasing the vertical scope by the window height, and the horizontal
+scope was defined by the polynomial curve +/- the margin.
+When there was a previous frame, there was no loop but instead, the whole image was
+checked at once, where the pixel search was limited to the previous polynomial +/- the margin.
+In order to avoid drastic changes, the x value of the polynomial at y=0 was compared with the
+one from the frame before. In case the change of the x position was over the margin, a correction
+was made by fitting the polynomial with both the current and the old pixels. This rule was very
+helpful to avoid problems in some frames were the color and gradient thresholds included pixels
+that were not the actual line.
+
+![alt text][image5]
+
+* *Curvature and car offset*
+The curvature of the polynomial was calculated using the measure_curvature_real
+function. This function received the pixels of the images for both lines. Those pixels were
+converted to meters considering 30 meters per 720 pixels in the y dimension and 3.7 m per 700
+pixels in the x dimension. After the pixels were converted, a new polynomial was fitted, and the
+curvature was calculated with the same equation presented on the lessons.
+The car offset was calculated on the get_car_offset function. This function calculates the
+x value for y = max(y) for both lines (based on polynomials). After that, the distance between
+the center of the image and each of the lines lower point was measured and converted to
+meters.
+
+![alt text][image6]
+
+### 3. Pipeline (Video)
+
+The pipeline used for the video was the same one described above. The only difference was
+that for this case, a class called ProcessVideo was created. The purpose of this was to be able to save
+the polynomials information between frames.
+The final video can be found under the output_videos/project_video.mp4.[link to the video](./output_videos/project_video.mp4)
+
+![alt text][videos1]
+
+ 
